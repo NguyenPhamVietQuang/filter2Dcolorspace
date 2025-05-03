@@ -28,6 +28,7 @@ import cv2
 from scipy.ndimage import gaussian_filter
 import matplotlib.pyplot as plt
 import os
+from scipy.signal import convolve2d
 
 # --- Định nghĩa và nghịch đảo Ma trận từ Paper (Eq. 1) ---
 # Ma trận RGB -> XYZ từ Phương trình (1) trong PDF
@@ -81,41 +82,99 @@ def xyY_to_xyz(xyY):
     return np.stack((X, Y, Z), axis=-1)
 
 # --- Hàm lọc xyY (Phương pháp của Paper - Không lọc Y) ---
-def xyY_filter_paper(xyy_image, sigma=2, filter_x=True, filter_y=True):
-    """Áp dụng bộ lọc xyY theo phương pháp Paper, giữ nguyên Y."""
-    x, y, Y = xyy_image[...,0], xyy_image[...,1], xyy_image[...,2]
-    # Tính w = Y/y, tránh NaN/infinite
-    w = np.nan_to_num(Y / y)
-    # Mẫu số: Gσ[w]
-    denom = gaussian_filter(w, sigma=sigma)
+# def xyY_filter_paper(xyy_image, sigma=2, filter_x=True, filter_y=True):
+#     """Áp dụng bộ lọc xyY theo phương pháp Paper, giữ nguyên Y."""
+#     x, y, Y = xyy_image[...,0], xyy_image[...,1], xyy_image[...,2]
+#     # Tính w = Y/y, tránh NaN/infinite
+#     w = np.nan_to_num(Y / y)
+#     # Mẫu số: Gσ[w]
+#     denom = gaussian_filter(w, sigma=sigma)
 
-    # Lọc x: Gσ[x·w] / Gσ[w]
+#     # Lọc x: Gσ[x·w] / Gσ[w]
+#     if filter_x:
+#         num_x = gaussian_filter(x * w, sigma=sigma)
+#         x_g = np.nan_to_num(num_x / denom)
+#     else:
+#         x_g = x
+
+#     # Lọc y: Gσ[y·w] / Gσ[w]
+#     if filter_y:
+#         num_y = gaussian_filter(y * w, sigma=sigma)
+#         y_g = np.nan_to_num(num_y / denom)
+#     else:
+#         y_g = y
+
+#     # Trả về (x, y, Y) với Y giữ nguyên
+#     return np.stack((x_g, y_g, Y), axis=-1)
+
+import numpy as np
+from scipy.signal import convolve2d
+
+def gaussian_kernel_2d(size=7, sigma=2):
+    """Tạo kernel Gaussian 2D có kích thước size x size và độ lệch chuẩn sigma."""
+    ax = np.linspace(-(size // 2), size // 2, size)
+    xx, yy = np.meshgrid(ax, ax)
+    kernel = np.exp(-(xx**2 + yy**2) / (2.0 * sigma**2))
+    kernel /= np.sum(kernel)  # Chuẩn hóa tổng bằng 1
+    return kernel
+
+def convolve_channel(channel, kernel):
+    """Tích chập kênh ảnh 2D với kernel."""
+    return convolve2d(channel, kernel, mode='same', boundary='symm')
+
+def xyY_filter_paper(xyy_image,  sigma=2, filter_x=True, filter_y=True):
+    """Lọc ảnh theo không gian xyY như bài báo, dùng kernel Gaussian 7x7."""
+    x, y, Y = xyy_image[..., 0], xyy_image[..., 1], xyy_image[..., 2]
+    kernel = gaussian_kernel_2d(size=7, sigma=sigma)
+
+    # Tránh chia cho 0 trong w = Y / y
+    # epsilon = 1e-10
+    w = Y / (y)
+
+    denom = convolve_channel(w, kernel)
+
+    # Lọc x
     if filter_x:
-        num_x = gaussian_filter(x * w, sigma=sigma)
-        x_g = np.nan_to_num(num_x / denom)
+        num_x = convolve_channel(x * w, kernel)
+        x_g = num_x / (denom)
     else:
         x_g = x
 
-    # Lọc y: Gσ[y·w] / Gσ[w]
+    # Lọc y
     if filter_y:
-        num_y = gaussian_filter(y * w, sigma=sigma)
-        y_g = np.nan_to_num(num_y / denom)
+        num_y = convolve_channel(y * w, kernel)
+        y_g = num_y / (denom)
     else:
         y_g = y
 
-    # Trả về (x, y, Y) với Y giữ nguyên
     return np.stack((x_g, y_g, Y), axis=-1)
 
+
 # --- Hàm lọc "ngây thơ" (Naive Filter) ---
-def naive_filter(xyy_image, sigma=2, filter_x=True, filter_y=True):
-    """Áp dụng bộ lọc Gaussian trực tiếp lên kênh x và y."""
-    x_f, y_f, Y_f = xyy_image[..., 0], xyy_image[..., 1], xyy_image[..., 2]
-    if filter_x: x_g = gaussian_filter(x_f, sigma=sigma)
-    else: x_g = x_f
-    if filter_y: y_g = gaussian_filter(y_f, sigma=sigma)
-    else: y_g = y_f
-    Y_g = Y_f
-    return np.stack((x_g, y_g, Y_g), axis=-1)
+# def naive_filter(xyy_image, sigma=2, filter_x=True, filter_y=True):
+#     """Áp dụng bộ lọc Gaussian trực tiếp lên kênh x và y."""
+#     x_f, y_f, Y_f = xyy_image[..., 0], xyy_image[..., 1], xyy_image[..., 2]
+#     if filter_x: x_g = gaussian_filter(x_f, sigma=sigma)
+#     else: x_g = x_f
+#     if filter_y: y_g = gaussian_filter(y_f, sigma=sigma)
+#     else: y_g = y_f
+#     Y_g = Y_f
+#     return np.stack((x_g, y_g, Y_g), axis=-1)
+
+def naive_filter(xyy_image, sigma = 2, filter_x=True, filter_y=True):
+    """Áp dụng lọc Gaussian trực tiếp lên kênh x và y theo phương pháp naive từ bài báo."""
+    kernel = gaussian_kernel_2d(size=7, sigma=sigma)
+
+    x, y, Y = xyy_image[..., 0], xyy_image[..., 1], xyy_image[..., 2]
+
+    # Lọc kênh x nếu cần
+    x_g = convolve_channel(x, kernel) if filter_x else x
+
+    # Lọc kênh y nếu cần
+    y_g = convolve_channel(y, kernel) if filter_y else y
+
+    # Y giữ nguyên
+    return np.stack((x_g, y_g, Y), axis=-1)
 
 # --- Hàm tính Rho (Năng lượng tương đối) ---
 def calculate_relative_energy(rgb_image_uint8):
@@ -147,10 +206,10 @@ def plot_chromaticity_diagram(ax, x_coords, y_coords, title):
 # --- Main ---
 if __name__ == "__main__":
     # --- Cấu hình ---
-    input_filename = "image copy.png" # Ảnh gốc từ report
+    input_filename = "image6.jpg" # Ảnh gốc từ report
     output_dir = "ouput" # Thư mục lưu kết quả
     sigma_paper = 2.0       # Sigma cho phương pháp Paper
-    sigma_naive = 10.0      # Sigma LỚN HƠN cho phương pháp Naive
+    sigma_naive = 2.0     # Sigma LỚN HƠN cho phương pháp Naive
     # ---
 
     os.makedirs(output_dir, exist_ok=True)
@@ -194,7 +253,8 @@ if __name__ == "__main__":
     axes_paper_imgs[1, 0].imshow(rgb_paper_y); axes_paper_imgs[1, 0].set_title(f"y-filtered (Paper, s={sigma_paper})"); axes_paper_imgs[1, 0].axis('off')
     axes_paper_imgs[1, 1].imshow(rgb_paper_xy); axes_paper_imgs[1, 1].set_title(f"xy-filtered (Paper, s={sigma_paper})"); axes_paper_imgs[1, 1].axis('off')
     fig_paper_imgs.suptitle(f'Paper Method Results (Y unfiltered)', fontsize=14)
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95]); plt.show(block=False)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95]); 
+    # plt.show(block=False)
 
     print("\nTính Rho values cho phương pháp Paper...")
     # ... (Code tính và in Rho Paper giữ nguyên) ...
@@ -216,7 +276,8 @@ if __name__ == "__main__":
     plot_chromaticity_diagram(axes_paper_chroma[2], xyy_paper_y[..., 0], xyy_paper_y[..., 1], f"y-filtered (Paper, s={sigma_paper})")
     plot_chromaticity_diagram(axes_paper_chroma[3], xyy_paper_xy[..., 0], xyy_paper_xy[..., 1], f"xy-filtered (Paper, s={sigma_paper})")
     fig_paper_chroma.suptitle(f'xy Chromaticity Diagrams (Paper Method)', fontsize=14)
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95]); plt.show(block=False)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95]); 
+    # plt.show(block=False)
     paper_chroma_filename = f"chromaticity_paper_s{sigma_paper}.png"
     fig_paper_chroma.savefig(os.path.join(output_dir, paper_chroma_filename))
     print(f"Đã lưu biểu đồ sắc độ Paper: {os.path.join(output_dir, paper_chroma_filename)}")
@@ -243,7 +304,8 @@ if __name__ == "__main__":
     axes_naive_imgs[1, 0].imshow(rgb_naive_y); axes_naive_imgs[1, 0].set_title(f"y-filtered (naive, s={sigma_naive})"); axes_naive_imgs[1, 0].axis('off')
     axes_naive_imgs[1, 1].imshow(rgb_naive_xy); axes_naive_imgs[1, 1].set_title(f"xy-filtered (naive, s={sigma_naive})"); axes_naive_imgs[1, 1].axis('off')
     fig_naive_imgs.suptitle(f'Naive Method Filtering Results', fontsize=14)
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95]); plt.show(block=False)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95]); 
+    # plt.show(block=False)
 
 
     print("\nTính Rho values cho phương pháp Naive...")
@@ -264,14 +326,15 @@ if __name__ == "__main__":
     plot_chromaticity_diagram(axes_naive_chroma[2], xyy_naive_y[..., 0], xyy_naive_y[..., 1], f"y-filtered (naive, s={sigma_naive})")
     plot_chromaticity_diagram(axes_naive_chroma[3], xyy_naive_xy[..., 0], xyy_naive_xy[..., 1], f"xy-filtered (naive, s={sigma_naive})")
     fig_naive_chroma.suptitle(f'xy Chromaticity Diagrams (Naive Method)', fontsize=14)
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95]); plt.show(block=False)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95]); 
+    # plt.show(block=False)
     naive_chroma_filename = f"chromaticity_naive_s{sigma_naive}.png"
     fig_naive_chroma.savefig(os.path.join(output_dir, naive_chroma_filename))
     print(f"Đã lưu biểu đồ sắc độ Naive: {os.path.join(output_dir, naive_chroma_filename)}")
 
 
     # --- Kết thúc ---
-    print("\nĐóng tất cả cửa sổ hình ảnh để kết thúc chương trình.")
-    plt.show() # Giữ các cửa sổ plot mở
+    # print("\nĐóng tất cả cửa sổ hình ảnh để kết thúc chương trình.")
+    # plt.show() # Giữ các cửa sổ plot mở
 
     print("\nProcessing complete.")

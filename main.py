@@ -110,13 +110,21 @@ def xyY_to_xyz(xyY):
 import numpy as np
 from scipy.signal import convolve2d
 
+# def gaussian_kernel_2d(size=7, sigma=2):
+#     """Tạo kernel Gaussian 2D có kích thước size x size và độ lệch chuẩn sigma."""
+#     ax = np.linspace(-(size // 2), size // 2, size)
+#     xx, yy = np.meshgrid(ax, ax)
+#     kernel = np.exp(-(xx**2 + yy**2) / (2.0 * sigma**2))
+#     kernel /= np.sum(kernel)  # Chuẩn hóa tổng bằng 1
+#     return kernel
+
 def gaussian_kernel_2d(size=7, sigma=2):
-    """Tạo kernel Gaussian 2D có kích thước size x size và độ lệch chuẩn sigma."""
-    ax = np.linspace(-(size // 2), size // 2, size)
-    xx, yy = np.meshgrid(ax, ax)
-    kernel = np.exp(-(xx**2 + yy**2) / (2.0 * sigma**2))
-    kernel /= np.sum(kernel)  # Chuẩn hóa tổng bằng 1
-    return kernel
+    # Tạo Gaussian kernel 1D
+    kernel_1d = cv2.getGaussianKernel(ksize=size, sigma=sigma)
+
+    # Tạo Gaussian kernel 2D bằng tích outer
+    kernel_2d = kernel_1d @ kernel_1d.T  # equivalent to np.outer(kernel_1d, kernel_1d)
+    return kernel_2d
 
 def convolve_channel(channel, kernel):
     """Tích chập kênh ảnh 2D với kernel."""
@@ -206,10 +214,10 @@ def plot_chromaticity_diagram(ax, x_coords, y_coords, title):
 # --- Main ---
 if __name__ == "__main__":
     # --- Cấu hình ---
-    input_filename = "image6.jpg" # Ảnh gốc từ report
+    input_filename = "1.jpg" # Ảnh gốc từ report
     output_dir = "ouput" # Thư mục lưu kết quả
     sigma_paper = 2.0       # Sigma cho phương pháp Paper
-    sigma_naive = 2.0     # Sigma LỚN HƠN cho phương pháp Naive
+    sigma_naive = 10    # Sigma LỚN HƠN cho phương pháp Naive
     # ---
 
     os.makedirs(output_dir, exist_ok=True)

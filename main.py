@@ -214,10 +214,10 @@ def plot_chromaticity_diagram(ax, x_coords, y_coords, title):
 # --- Main ---
 if __name__ == "__main__":
     # --- Cấu hình ---
-    input_filename = "1.jpg" # Ảnh gốc từ report
+    input_filename = "image.png" # Ảnh gốc từ report
     output_dir = "ouput" # Thư mục lưu kết quả
     sigma_paper = 2.0       # Sigma cho phương pháp Paper
-    sigma_naive = 10    # Sigma LỚN HƠN cho phương pháp Naive
+    sigma_naive = 2.0    # Sigma LỚN HƠN cho phương pháp Naive
     # ---
 
     os.makedirs(output_dir, exist_ok=True)

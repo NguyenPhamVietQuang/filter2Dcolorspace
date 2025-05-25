@@ -84,11 +84,11 @@ from scipy.signal import convolve2d
 #     kernel /= np.sum(kernel)  # Chuẩn hóa tổng bằng 1
 #     return kernel
 
-def add_gaussian_noise(rgb_image, mean=0.0, sigma=0.05):
-    img = rgb_image.astype(np.float64) / 255.0
-    noise = np.random.normal(mean, sigma, img.shape)
-    noisy = np.clip(img + noise, 0.0, 1.0)
-    return (noisy * 255).astype(np.uint8)
+# def add_gaussian_noise(rgb_image, mean=0.0, sigma=0.05):
+#     img = rgb_image.astype(np.float64) / 255.0
+#     noise = np.random.normal(mean, sigma, img.shape)
+#     noisy = np.clip(img + noise, 0.0, 1.0)
+#     return (noisy * 255).astype(np.uint8)
 
 def add_salt_and_pepper_noise(rgb_image, amount=0.005):
     img = rgb_image.copy()
@@ -200,13 +200,13 @@ if __name__ == "__main__":
 
     try:
         img_bgr = cv2.imread(input_filename,1)
-        if img_bgr is None: raise FileNotFoundError(f"Không thể đọc file ảnh: {input_filename}.")
-        img_rgb_matrix = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-        print(f"Đã đọc ảnh: '{input_filename}', kích thước: {img_rgb_matrix.shape}")
+        # img_noisy_gauss = add_gaussian_noise(img_bgr, mean=0.0, sigma=0.05)
+        img_noisy_sp = add_salt_and_pepper_noise(img_bgr, amount=0.2)
+        # if img_bgr is None: raise FileNotFoundError(f"Không thể đọc file ảnh: {input_filename}.")
+        img_rgb_matrix = cv2.cvtColor(img_noisy_sp, cv2.COLOR_BGR2RGB)
+        # print(f"Đã đọc ảnh: '{input_filename}', kích thước: {img_rgb_matrix.shape}")
     except FileNotFoundError as e: print(e); exit()
     except Exception as e: print(f"Lỗi khi đọc ảnh: {e}"); exit()
-    img_noisy_gauss = add_gaussian_noise(img_bgr, mean=0.0, sigma=0.05)
-    img_noisy_sp = add_salt_and_pepper_noise(img_bgr, amount=0.5)
 
     print("Chuẩn bị dữ liệu xyY gốc...")
     rgb_float_orig = img_rgb_matrix.astype(np.float64) / 255.0
@@ -301,9 +301,9 @@ if __name__ == "__main__":
     # fig_naive_chroma.savefig(os.path.join(output_dir, naive_chroma_filename))
     print(f"Đã lưu biểu đồ sắc độ Naive: {os.path.join(output_dir, naive_chroma_filename)}")
     # Lưu ảnh nhiễu Gaussian
-    gauss_filename = os.path.join(output_dir, f"noisy_gaussian_s{sigma_paper}.png")
-    cv2.imwrite(gauss_filename, cv2.cvtColor(img_noisy_gauss, cv2.COLOR_RGB2BGR))
-    print(f"Đã lưu ảnh nhiễu Gaussian: {gauss_filename}")
+    # gauss_filename = os.path.join(output_dir, f"noisy_gaussian_s{sigma_paper}.png")
+    # cv2.imwrite(gauss_filename, cv2.cvtColor(img_noisy_gauss, cv2.COLOR_RGB2BGR))
+    # print(f"Đã lưu ảnh nhiễu Gaussian: {gauss_filename}")
 
     # Lưu ảnh nhiễu Salt & Pepper
     sp_filename = os.path.join(output_dir, f"noisy_saltpepper_a{0.005}.png")
